@@ -2,21 +2,31 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Calendar, CheckSquare, Square, X, Filter } from 'lucide-react';
+import { Plus, Trash2, Calendar, CheckSquare, Square, X, Filter, Printer, FileText, ArrowLeft } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import AttendanceSheet from '../components/AttendanceSheet';
+import ReportCard from '../components/ReportCard';
 
 export default function Dashboard() {
     const [students, setStudents] = useState([]);
     const [classes, setClasses] = useState([]);
     const [selectedClass, setSelectedClass] = useState('all');
 
-    const [newStudentName, setNewStudentName] = useState('');
-    const [newStudentClass, setNewStudentClass] = useState('');
+    const [isBulkMode, setIsBulkMode] = useState(false);
+    const [bulkStudents, setBulkStudents] = useState('');
 
     const [gradeInputs, setGradeInputs] = useState({});
     const [attendanceMode, setAttendanceMode] = useState(false);
     const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
     const [attendanceList, setAttendanceList] = useState({});
+
+    // Printing State
+    const [printMode, setPrintMode] = useState('none'); // 'none', 'attendance', 'report'
+    const [studentToPrint, setStudentToPrint] = useState(null);
+
+    // New Student State (moved to top to avoid hooks violation)
+    const [newStudentName, setNewStudentName] = useState('');
+    const [newStudentClass, setNewStudentClass] = useState('');
 
     const { currentUser } = useAuth();
 
@@ -65,6 +75,28 @@ export default function Dashboard() {
         setNewStudentName('');
     }
 
+    async function handleBulkAddStudent(e) {
+        e.preventDefault();
+        if (!bulkStudents.trim()) return;
+
+        const names = bulkStudents.split('\n').filter(name => name.trim() !== '');
+
+        const batchPromises = names.map(name => {
+            return addDoc(collection(db, "students"), {
+                name: name.trim(),
+                classId: newStudentClass || null,
+                grades: [],
+                attendance: [],
+                createdAt: new Date()
+            });
+        });
+
+        await Promise.all(batchPromises);
+        setBulkStudents('');
+        setIsBulkMode(false);
+        alert(`${names.length} alunos adicionados com sucesso!`);
+    }
+
     async function handleAddGrade(studentId) {
         const input = gradeInputs[studentId];
         if (!input || !input.subject || !input.score) return;
@@ -110,13 +142,21 @@ export default function Dashboard() {
 
         const batchPromises = studentsToMark.map(student => {
             const isPresent = attendanceList[student.id] || false;
+            const subject = isTeacher ? currentUser.subject : 'Geral';
+
+            // Remove existing record for this date/subject if it exists
+            const existingAttendance = student.attendance || [];
+            const filteredAttendance = existingAttendance.filter(
+                record => !(record.date === attendanceDate && record.subject === subject)
+            );
+
             const newRecord = {
                 date: attendanceDate,
                 present: isPresent,
-                subject: isTeacher ? currentUser.subject : 'Geral'
+                subject: subject
             };
 
-            const newAttendance = [...(student.attendance || []), newRecord];
+            const newAttendance = [...filteredAttendance, newRecord];
             const studentRef = doc(db, "students", student.id);
             return updateDoc(studentRef, { attendance: newAttendance });
         });
@@ -154,6 +194,58 @@ export default function Dashboard() {
         ? students
         : students.filter(s => s.classId === selectedClass);
 
+    // Print Handlers
+    const handlePrintAttendance = () => {
+        setPrintMode('attendance');
+    };
+
+    const handlePrintReport = (student) => {
+        setStudentToPrint(student);
+        setPrintMode('report');
+    };
+
+    const exitPrintMode = () => {
+        setPrintMode('none');
+        setStudentToPrint(null);
+    };
+
+    // Render Print Views
+    if (printMode === 'attendance') {
+        const className = selectedClass === 'all' ? 'Todas as Turmas' : classes.find(c => c.id === selectedClass)?.name || 'Sem Turma';
+        return (
+            <div className="min-h-screen bg-white">
+                <div className="print:hidden p-4 bg-gray-100 flex justify-between items-center sticky top-0 z-50 shadow-sm">
+                    <button onClick={exitPrintMode} className="flex items-center text-gray-700 hover:text-black">
+                        <ArrowLeft className="h-5 w-5 mr-2" /> Voltar
+                    </button>
+                    <button onClick={() => window.print()} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-indigo-700">
+                        <Printer className="h-5 w-5 mr-2" /> Imprimir
+                    </button>
+                </div>
+                <AttendanceSheet
+                    className={className}
+                    students={filteredStudents}
+                />
+            </div>
+        );
+    }
+
+    if (printMode === 'report' && studentToPrint) {
+        return (
+            <div className="min-h-screen bg-white">
+                <div className="print:hidden p-4 bg-gray-100 flex justify-between items-center sticky top-0 z-50 shadow-sm">
+                    <button onClick={exitPrintMode} className="flex items-center text-gray-700 hover:text-black">
+                        <ArrowLeft className="h-5 w-5 mr-2" /> Voltar
+                    </button>
+                    <button onClick={() => window.print()} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-indigo-700">
+                        <Printer className="h-5 w-5 mr-2" /> Imprimir
+                    </button>
+                </div>
+                <ReportCard student={studentToPrint} />
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
             <Navbar />
@@ -166,33 +258,72 @@ export default function Dashboard() {
                     {/* Add Student */}
                     {canManageStudents && (
                         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 border border-gray-100 dark:border-gray-700 flex-1 w-full lg:w-auto">
-                            <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Novo Aluno</h2>
-                            <form onSubmit={handleAddStudent} className="flex flex-col sm:flex-row gap-2">
-                                <input
-                                    type="text"
-                                    value={newStudentName}
-                                    onChange={(e) => setNewStudentName(e.target.value)}
-                                    placeholder="Nome do aluno..."
-                                    className="flex-1 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm"
-                                />
-                                <select
-                                    value={newStudentClass}
-                                    onChange={(e) => setNewStudentClass(e.target.value)}
-                                    className="rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm"
-                                >
-                                    <option value="">Sem Turma</option>
-                                    {classes.map(cls => (
-                                        <option key={cls.id} value={cls.id}>{cls.name}</option>
-                                    ))}
-                                </select>
+                            <div className="flex justify-between items-center mb-2">
+                                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Novo Aluno</h2>
                                 <button
-                                    type="submit"
-                                    className="inline-flex justify-center items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+                                    onClick={() => setIsBulkMode(!isBulkMode)}
+                                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
                                 >
-                                    <Plus className="h-4 w-4 mr-1" />
-                                    Add
+                                    {isBulkMode ? 'Modo Simples' : 'Modo em Massa'}
                                 </button>
-                            </form>
+                            </div>
+
+                            {isBulkMode ? (
+                                <form onSubmit={handleBulkAddStudent} className="flex flex-col gap-2">
+                                    <textarea
+                                        value={bulkStudents}
+                                        onChange={(e) => setBulkStudents(e.target.value)}
+                                        placeholder="Cole a lista de nomes aqui (um por linha)..."
+                                        className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm min-h-[100px]"
+                                    />
+                                    <div className="flex gap-2">
+                                        <select
+                                            value={newStudentClass}
+                                            onChange={(e) => setNewStudentClass(e.target.value)}
+                                            className="flex-1 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm"
+                                        >
+                                            <option value="">Sem Turma</option>
+                                            {classes.map(cls => (
+                                                <option key={cls.id} value={cls.id}>{cls.name}</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            type="submit"
+                                            className="inline-flex justify-center items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+                                        >
+                                            <Plus className="h-4 w-4 mr-1" />
+                                            Add Todos
+                                        </button>
+                                    </div>
+                                </form>
+                            ) : (
+                                <form onSubmit={handleAddStudent} className="flex flex-col sm:flex-row gap-2">
+                                    <input
+                                        type="text"
+                                        value={newStudentName}
+                                        onChange={(e) => setNewStudentName(e.target.value)}
+                                        placeholder="Nome do aluno..."
+                                        className="flex-1 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm"
+                                    />
+                                    <select
+                                        value={newStudentClass}
+                                        onChange={(e) => setNewStudentClass(e.target.value)}
+                                        className="rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm"
+                                    >
+                                        <option value="">Sem Turma</option>
+                                        {classes.map(cls => (
+                                            <option key={cls.id} value={cls.id}>{cls.name}</option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        type="submit"
+                                        className="inline-flex justify-center items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+                                    >
+                                        <Plus className="h-4 w-4 mr-1" />
+                                        Add
+                                    </button>
+                                </form>
+                            )}
                         </div>
                     )}
 
@@ -213,16 +344,25 @@ export default function Dashboard() {
                         </div>
 
                         {(isTeacher || isAdmin) && (
-                            <button
-                                onClick={() => setAttendanceMode(!attendanceMode)}
-                                className={`inline-flex justify-center items-center px-4 py-2 border text-sm font-medium rounded-lg shadow-sm transition-colors ${attendanceMode
+                            <>
+                                <button
+                                    onClick={() => setAttendanceMode(!attendanceMode)}
+                                    className={`inline-flex justify-center items-center px-4 py-2 border text-sm font-medium rounded-lg shadow-sm transition-colors ${attendanceMode
                                         ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'
                                         : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
-                                    }`}
-                            >
-                                <Calendar className="h-5 w-5 mr-2" />
-                                {attendanceMode ? 'Cancelar Chamada' : 'Realizar Chamada'}
-                            </button>
+                                        }`}
+                                >
+                                    <Calendar className="h-5 w-5 mr-2" />
+                                    {attendanceMode ? 'Cancelar Chamada' : 'Realizar Chamada'}
+                                </button>
+                                <button
+                                    onClick={handlePrintAttendance}
+                                    className="inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg shadow-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                    title="Imprimir Folha de Chamada"
+                                >
+                                    <Printer className="h-5 w-5" />
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>
@@ -248,8 +388,8 @@ export default function Dashboard() {
                                     key={student.id}
                                     onClick={() => toggleAttendance(student.id)}
                                     className={`cursor-pointer p-3 rounded-lg border flex items-center justify-between transition-all ${attendanceList[student.id]
-                                            ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-800 text-green-800 dark:text-green-300'
-                                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                                        ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-800 text-green-800 dark:text-green-300'
+                                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
                                         }`}
                                 >
                                     <span className="font-medium">{student.name}</span>
@@ -291,14 +431,23 @@ export default function Dashboard() {
                                                 </span>
                                             )}
                                         </div>
-                                        {canManageStudents && (
+                                        <div className="flex items-center gap-2">
                                             <button
-                                                onClick={() => handleDeleteStudent(student.id)}
-                                                className="text-gray-400 hover:text-red-500 transition-colors"
+                                                onClick={() => handlePrintReport(student)}
+                                                className="text-gray-400 hover:text-indigo-500 transition-colors"
+                                                title="Imprimir Boletim"
                                             >
-                                                <Trash2 className="h-5 w-5" />
+                                                <FileText className="h-5 w-5" />
                                             </button>
-                                        )}
+                                            {canManageStudents && (
+                                                <button
+                                                    onClick={() => handleDeleteStudent(student.id)}
+                                                    className="text-gray-400 hover:text-red-500 transition-colors"
+                                                >
+                                                    <Trash2 className="h-5 w-5" />
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div className="space-y-4">
