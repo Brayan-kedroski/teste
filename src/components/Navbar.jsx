@@ -10,7 +10,8 @@ import {
     Moon,
     LayoutDashboard,
     Users,
-    Shield
+    Shield,
+    Calendar
 } from 'lucide-react';
 
 export default function Navbar() {
@@ -21,6 +22,7 @@ export default function Navbar() {
 
     const isAdmin = currentUser?.role === 'admin';
     const isSecretary = currentUser?.role === 'secretary';
+    const isTeacher = currentUser?.role === 'teacher';
     const canAccessAdmin = isAdmin || isSecretary;
 
     async function handleLogout() {
@@ -53,8 +55,8 @@ export default function Navbar() {
                             <Link
                                 to="/"
                                 className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/')
-                                        ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300'
-                                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                    ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300'
+                                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                                     }`}
                             >
                                 <LayoutDashboard className="h-4 w-4 mr-2" />
@@ -65,8 +67,8 @@ export default function Navbar() {
                                 <Link
                                     to="/classes"
                                     className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/classes')
-                                            ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300'
-                                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                        ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300'
+                                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                                         }`}
                                 >
                                     <Users className="h-4 w-4 mr-2" />
@@ -74,12 +76,25 @@ export default function Navbar() {
                                 </Link>
                             )}
 
+                            {(isAdmin || isTeacher) && (
+                                <Link
+                                    to="/attendance"
+                                    className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/attendance')
+                                        ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300'
+                                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                        }`}
+                                >
+                                    <Calendar className="h-4 w-4 mr-2" />
+                                    Chamada
+                                </Link>
+                            )}
+
                             {canAccessAdmin && (
                                 <Link
                                     to="/admin"
                                     className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/admin')
-                                            ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300'
-                                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                        ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300'
+                                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                                         }`}
                                 >
                                     <Shield className="h-4 w-4 mr-2" />

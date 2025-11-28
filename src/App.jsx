@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
 import Classes from './pages/Classes';
+import Attendance from './pages/Attendance';
 
 function PrivateRoute({ children }) {
     const { currentUser } = useAuth();
@@ -30,6 +31,14 @@ function App() {
                             element={
                                 <PrivateRoute>
                                     <Dashboard />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/attendance"
+                            element={
+                                <PrivateRoute>
+                                    <Attendance />
                                 </PrivateRoute>
                             }
                         />

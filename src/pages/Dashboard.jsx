@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Calendar, CheckSquare, Square, X, Filter, Printer, FileText, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, X, Filter, Printer, ArrowLeft, Pencil } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import AttendanceSheet from '../components/AttendanceSheet';
 import ReportCard from '../components/ReportCard';
@@ -24,9 +24,16 @@ export default function Dashboard() {
     const [printMode, setPrintMode] = useState('none'); // 'none', 'attendance', 'report'
     const [studentToPrint, setStudentToPrint] = useState(null);
 
-    // New Student State (moved to top to avoid hooks violation)
+    // New Student State
     const [newStudentName, setNewStudentName] = useState('');
     const [newStudentClass, setNewStudentClass] = useState('');
+    const [newStudentCPF, setNewStudentCPF] = useState('');
+    const [newStudentPhone, setNewStudentPhone] = useState('');
+    const [newStudentEmail, setNewStudentEmail] = useState('');
+    const [newStudentAddress, setNewStudentAddress] = useState('');
+    const [newStudentBirthDate, setNewStudentBirthDate] = useState('');
+    const [showOptionalFields, setShowOptionalFields] = useState(false);
+    const [editingStudent, setEditingStudent] = useState(null);
 
     const { currentUser } = useAuth();
 
@@ -68,11 +75,64 @@ export default function Dashboard() {
         await addDoc(collection(db, "students"), {
             name: newStudentName,
             classId: newStudentClass || null,
+            cpf: newStudentCPF || null,
+            phone: newStudentPhone || null,
+            email: newStudentEmail || null,
+            address: newStudentAddress || null,
+            birthDate: newStudentBirthDate || null,
             grades: [],
             attendance: [],
             createdAt: new Date()
         });
+        resetForm();
+    }
+
+    async function handleUpdateStudent(e) {
+        e.preventDefault();
+        if (!newStudentName.trim() || !editingStudent) return;
+
+        const studentRef = doc(db, "students", editingStudent);
+        await updateDoc(studentRef, {
+            name: newStudentName,
+            classId: newStudentClass || null,
+            cpf: newStudentCPF || null,
+            phone: newStudentPhone || null,
+            email: newStudentEmail || null,
+            address: newStudentAddress || null,
+            birthDate: newStudentBirthDate || null
+        });
+
+        resetForm();
+        alert('Aluno atualizado com sucesso!');
+    }
+
+    function resetForm() {
         setNewStudentName('');
+        setNewStudentClass('');
+        setNewStudentCPF('');
+        setNewStudentPhone('');
+        setNewStudentEmail('');
+        setNewStudentAddress('');
+        setNewStudentBirthDate('');
+        setShowOptionalFields(false);
+        setEditingStudent(null);
+    }
+
+    function handleEditStudent(student) {
+        setEditingStudent(student.id);
+        setNewStudentName(student.name);
+        setNewStudentClass(student.classId || '');
+        setNewStudentCPF(student.cpf || '');
+        setNewStudentPhone(student.phone || '');
+        setNewStudentEmail(student.email || '');
+        setNewStudentAddress(student.address || '');
+        setNewStudentBirthDate(student.birthDate || '');
+
+        // Always show optional fields when editing so the user can see/add data
+        setShowOptionalFields(true);
+
+        // Scroll to top
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     async function handleBulkAddStudent(e) {
@@ -132,41 +192,6 @@ export default function Dashboard() {
         }
     }
 
-    async function handleSaveAttendance() {
-        if (!attendanceDate) return;
-
-        // Filter students if a class is selected
-        const studentsToMark = selectedClass === 'all'
-            ? students
-            : students.filter(s => s.classId === selectedClass);
-
-        const batchPromises = studentsToMark.map(student => {
-            const isPresent = attendanceList[student.id] || false;
-            const subject = isTeacher ? currentUser.subject : 'Geral';
-
-            // Remove existing record for this date/subject if it exists
-            const existingAttendance = student.attendance || [];
-            const filteredAttendance = existingAttendance.filter(
-                record => !(record.date === attendanceDate && record.subject === subject)
-            );
-
-            const newRecord = {
-                date: attendanceDate,
-                present: isPresent,
-                subject: subject
-            };
-
-            const newAttendance = [...filteredAttendance, newRecord];
-            const studentRef = doc(db, "students", student.id);
-            return updateDoc(studentRef, { attendance: newAttendance });
-        });
-
-        await Promise.all(batchPromises);
-        setAttendanceMode(false);
-        setAttendanceList({});
-        alert('Chamada realizada com sucesso!');
-    }
-
     function calculateAverage(grades) {
         if (!grades || grades.length === 0) return 0;
         const sum = grades.reduce((a, b) => a + b.value, 0);
@@ -180,13 +205,6 @@ export default function Dashboard() {
                 ...prev[studentId],
                 [field]: value
             }
-        }));
-    };
-
-    const toggleAttendance = (studentId) => {
-        setAttendanceList(prev => ({
-            ...prev,
-            [studentId]: !prev[studentId]
         }));
     };
 
@@ -259,10 +277,13 @@ export default function Dashboard() {
                     {canManageStudents && (
                         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 border border-gray-100 dark:border-gray-700 flex-1 w-full lg:w-auto">
                             <div className="flex justify-between items-center mb-2">
-                                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Novo Aluno</h2>
+                                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                    {editingStudent ? 'Editar Aluno' : 'Novo Aluno'}
+                                </h2>
                                 <button
                                     onClick={() => setIsBulkMode(!isBulkMode)}
                                     className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                                    disabled={!!editingStudent}
                                 >
                                     {isBulkMode ? 'Modo Simples' : 'Modo em Massa'}
                                 </button>
@@ -297,31 +318,98 @@ export default function Dashboard() {
                                     </div>
                                 </form>
                             ) : (
-                                <form onSubmit={handleAddStudent} className="flex flex-col sm:flex-row gap-2">
-                                    <input
-                                        type="text"
-                                        value={newStudentName}
-                                        onChange={(e) => setNewStudentName(e.target.value)}
-                                        placeholder="Nome do aluno..."
-                                        className="flex-1 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm"
-                                    />
-                                    <select
-                                        value={newStudentClass}
-                                        onChange={(e) => setNewStudentClass(e.target.value)}
-                                        className="rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm"
-                                    >
-                                        <option value="">Sem Turma</option>
-                                        {classes.map(cls => (
-                                            <option key={cls.id} value={cls.id}>{cls.name}</option>
-                                        ))}
-                                    </select>
-                                    <button
-                                        type="submit"
-                                        className="inline-flex justify-center items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
-                                    >
-                                        <Plus className="h-4 w-4 mr-1" />
-                                        Add
-                                    </button>
+                                <form onSubmit={editingStudent ? handleUpdateStudent : handleAddStudent} className="flex flex-col gap-2">
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                        <input
+                                            type="text"
+                                            value={newStudentName}
+                                            onChange={(e) => setNewStudentName(e.target.value)}
+                                            placeholder="Nome do aluno (Obrigatório)..."
+                                            className="flex-1 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm"
+                                        />
+                                        <select
+                                            value={newStudentClass}
+                                            onChange={(e) => setNewStudentClass(e.target.value)}
+                                            className="rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm"
+                                        >
+                                            <option value="">Sem Turma</option>
+                                            {classes.map(cls => (
+                                                <option key={cls.id} value={cls.id}>{cls.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowOptionalFields(!showOptionalFields)}
+                                            className="text-xs text-gray-500 hover:text-indigo-600 flex items-center"
+                                        >
+                                            {showOptionalFields ? 'Menos Detalhes' : 'Mais Detalhes (CPF, Tel, etc)'}
+                                        </button>
+                                    </div>
+
+                                    {showOptionalFields && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50 dark:bg-gray-700/30 p-2 rounded-lg">
+                                            <input
+                                                type="text"
+                                                value={newStudentCPF}
+                                                onChange={(e) => setNewStudentCPF(e.target.value)}
+                                                placeholder="CPF"
+                                                className="rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm"
+                                            />
+                                            <input
+                                                type="tel"
+                                                value={newStudentPhone}
+                                                onChange={(e) => setNewStudentPhone(e.target.value)}
+                                                placeholder="Telefone"
+                                                className="rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm"
+                                            />
+                                            <input
+                                                type="email"
+                                                value={newStudentEmail}
+                                                onChange={(e) => setNewStudentEmail(e.target.value)}
+                                                placeholder="Email"
+                                                className="rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm"
+                                            />
+                                            <input
+                                                type="date"
+                                                value={newStudentBirthDate}
+                                                onChange={(e) => setNewStudentBirthDate(e.target.value)}
+                                                className="rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={newStudentAddress}
+                                                onChange={(e) => setNewStudentAddress(e.target.value)}
+                                                placeholder="Endereço Completo"
+                                                className="col-span-1 sm:col-span-2 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 border text-sm"
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div className="flex gap-2">
+                                        {editingStudent && (
+                                            <button
+                                                type="button"
+                                                onClick={resetForm}
+                                                className="flex-1 inline-flex justify-center items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg shadow-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        )}
+                                        <button
+                                            type="submit"
+                                            className={`flex-1 inline-flex justify-center items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white ${editingStudent ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                                        >
+                                            {editingStudent ? 'Salvar Alterações' : (
+                                                <>
+                                                    <Plus className="h-4 w-4 mr-1" />
+                                                    Adicionar Aluno
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
                                 </form>
                             )}
                         </div>
@@ -346,16 +434,6 @@ export default function Dashboard() {
                         {(isTeacher || isAdmin) && (
                             <>
                                 <button
-                                    onClick={() => setAttendanceMode(!attendanceMode)}
-                                    className={`inline-flex justify-center items-center px-4 py-2 border text-sm font-medium rounded-lg shadow-sm transition-colors ${attendanceMode
-                                        ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'
-                                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
-                                        }`}
-                                >
-                                    <Calendar className="h-5 w-5 mr-2" />
-                                    {attendanceMode ? 'Cancelar Chamada' : 'Realizar Chamada'}
-                                </button>
-                                <button
                                     onClick={handlePrintAttendance}
                                     className="inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg shadow-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
                                     title="Imprimir Folha de Chamada"
@@ -368,48 +446,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Attendance Mode UI */}
-                {attendanceMode && (
-                    <div className="mb-8 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-6 border border-indigo-100 dark:border-indigo-900/50">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-bold text-indigo-900 dark:text-indigo-300 flex items-center">
-                                <CheckSquare className="h-5 w-5 mr-2" />
-                                Lista de Presença {selectedClass !== 'all' && `(${classes.find(c => c.id === selectedClass)?.name})`}
-                            </h2>
-                            <input
-                                type="date"
-                                value={attendanceDate}
-                                onChange={(e) => setAttendanceDate(e.target.value)}
-                                className="rounded-lg border-indigo-200 dark:border-indigo-800 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-1 text-sm"
-                            />
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-                            {filteredStudents.map(student => (
-                                <div
-                                    key={student.id}
-                                    onClick={() => toggleAttendance(student.id)}
-                                    className={`cursor-pointer p-3 rounded-lg border flex items-center justify-between transition-all ${attendanceList[student.id]
-                                        ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-800 text-green-800 dark:text-green-300'
-                                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
-                                        }`}
-                                >
-                                    <span className="font-medium">{student.name}</span>
-                                    {attendanceList[student.id] ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
-                                </div>
-                            ))}
-                            {filteredStudents.length === 0 && (
-                                <p className="text-gray-500 dark:text-gray-400 col-span-full">Nenhum aluno nesta turma.</p>
-                            )}
-                        </div>
-                        <div className="flex justify-end">
-                            <button
-                                onClick={handleSaveAttendance}
-                                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-sm"
-                            >
-                                Salvar Chamada
-                            </button>
-                        </div>
-                    </div>
-                )}
+
 
                 {/* Students Grid */}
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -432,12 +469,21 @@ export default function Dashboard() {
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2">
+                                            {canManageStudents && (
+                                                <button
+                                                    onClick={() => handleEditStudent(student)}
+                                                    className="text-gray-400 hover:text-indigo-500 transition-colors"
+                                                    title="Editar Aluno"
+                                                >
+                                                    <Pencil className="h-5 w-5" />
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => handlePrintReport(student)}
                                                 className="text-gray-400 hover:text-indigo-500 transition-colors"
                                                 title="Imprimir Boletim"
                                             >
-                                                <FileText className="h-5 w-5" />
+                                                <Printer className="h-5 w-5" />
                                             </button>
                                             {canManageStudents && (
                                                 <button
