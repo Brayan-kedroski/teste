@@ -16,9 +16,6 @@ export default function Dashboard() {
     const [bulkStudents, setBulkStudents] = useState('');
 
     const [gradeInputs, setGradeInputs] = useState({});
-    const [attendanceMode, setAttendanceMode] = useState(false);
-    const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
-    const [attendanceList, setAttendanceList] = useState({});
 
     // Printing State
     const [printMode, setPrintMode] = useState('none'); // 'none', 'attendance', 'report'
@@ -34,6 +31,7 @@ export default function Dashboard() {
     const [newStudentBirthDate, setNewStudentBirthDate] = useState('');
     const [showOptionalFields, setShowOptionalFields] = useState(false);
     const [editingStudent, setEditingStudent] = useState(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const { currentUser } = useAuth();
 
@@ -71,39 +69,60 @@ export default function Dashboard() {
 
     async function handleAddStudent(e) {
         e.preventDefault();
-        if (!newStudentName.trim()) return;
-        await addDoc(collection(db, "students"), {
-            name: newStudentName,
-            classId: newStudentClass || null,
-            cpf: newStudentCPF || null,
-            phone: newStudentPhone || null,
-            email: newStudentEmail || null,
-            address: newStudentAddress || null,
-            birthDate: newStudentBirthDate || null,
-            grades: [],
-            attendance: [],
-            createdAt: new Date()
-        });
-        resetForm();
+        if (!newStudentName.trim()) {
+            alert('Por favor, digite o nome do aluno.');
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            await addDoc(collection(db, "students"), {
+                name: newStudentName,
+                classId: newStudentClass || null,
+                cpf: newStudentCPF || null,
+                phone: newStudentPhone || null,
+                email: newStudentEmail || null,
+                address: newStudentAddress || null,
+                birthDate: newStudentBirthDate || null,
+                grades: [],
+                attendance: [],
+                createdAt: new Date()
+            });
+            resetForm();
+            alert('Aluno cadastrado com sucesso!');
+        } catch (error) {
+            console.error("Erro ao cadastrar aluno:", error);
+            alert(`Erro ao cadastrar aluno: ${error.message}`);
+        } finally {
+            setIsSubmitting(false);
+        }
     }
 
     async function handleUpdateStudent(e) {
         e.preventDefault();
         if (!newStudentName.trim() || !editingStudent) return;
 
-        const studentRef = doc(db, "students", editingStudent);
-        await updateDoc(studentRef, {
-            name: newStudentName,
-            classId: newStudentClass || null,
-            cpf: newStudentCPF || null,
-            phone: newStudentPhone || null,
-            email: newStudentEmail || null,
-            address: newStudentAddress || null,
-            birthDate: newStudentBirthDate || null
-        });
+        setIsSubmitting(true);
+        try {
+            const studentRef = doc(db, "students", editingStudent);
+            await updateDoc(studentRef, {
+                name: newStudentName,
+                classId: newStudentClass || null,
+                cpf: newStudentCPF || null,
+                phone: newStudentPhone || null,
+                email: newStudentEmail || null,
+                address: newStudentAddress || null,
+                birthDate: newStudentBirthDate || null
+            });
 
-        resetForm();
-        alert('Aluno atualizado com sucesso!');
+            resetForm();
+            alert('Aluno atualizado com sucesso!');
+        } catch (error) {
+            console.error("Erro ao atualizar aluno:", error);
+            alert(`Erro ao atualizar aluno: ${error.message}`);
+        } finally {
+            setIsSubmitting(false);
+        }
     }
 
     function resetForm() {
@@ -137,24 +156,36 @@ export default function Dashboard() {
 
     async function handleBulkAddStudent(e) {
         e.preventDefault();
-        if (!bulkStudents.trim()) return;
+        if (!bulkStudents.trim()) {
+            alert('Por favor, cole a lista de nomes.');
+            return;
+        }
 
-        const names = bulkStudents.split('\n').filter(name => name.trim() !== '');
+        setIsSubmitting(true);
+        try {
+            const names = bulkStudents.split('\n').filter(name => name.trim() !== '');
 
-        const batchPromises = names.map(name => {
-            return addDoc(collection(db, "students"), {
-                name: name.trim(),
-                classId: newStudentClass || null,
-                grades: [],
-                attendance: [],
-                createdAt: new Date()
+            const batchPromises = names.map(name => {
+                return addDoc(collection(db, "students"), {
+                    name: name.trim(),
+                    classId: newStudentClass || null,
+                    grades: [],
+                    attendance: [],
+                    createdAt: new Date()
+                });
             });
-        });
 
-        await Promise.all(batchPromises);
-        setBulkStudents('');
-        setIsBulkMode(false);
-        alert(`${names.length} alunos adicionados com sucesso!`);
+            await Promise.all(batchPromises);
+            setBulkStudents('');
+            setIsBulkMode(false);
+            resetForm();
+            alert(`${names.length} alunos adicionados com sucesso!`);
+        } catch (error) {
+            console.error("Erro ao adicionar alunos em massa:", error);
+            alert(`Erro ao adicionar alunos: ${error.message}`);
+        } finally {
+            setIsSubmitting(false);
+        }
     }
 
     async function handleAddGrade(studentId) {
@@ -310,10 +341,15 @@ export default function Dashboard() {
                                         </select>
                                         <button
                                             type="submit"
-                                            className="inline-flex justify-center items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+                                            disabled={isSubmitting}
+                                            className={`inline-flex justify-center items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
-                                            <Plus className="h-4 w-4 mr-1" />
-                                            Add Todos
+                                            {isSubmitting ? 'Salvando...' : (
+                                                <>
+                                                    <Plus className="h-4 w-4 mr-1" />
+                                                    Add Todos
+                                                </>
+                                            )}
                                         </button>
                                     </div>
                                 </form>
@@ -400,14 +436,15 @@ export default function Dashboard() {
                                         )}
                                         <button
                                             type="submit"
-                                            className={`flex-1 inline-flex justify-center items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white ${editingStudent ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                                            disabled={isSubmitting}
+                                            className={`flex-1 inline-flex justify-center items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white ${editingStudent ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
-                                            {editingStudent ? 'Salvar Alterações' : (
+                                            {isSubmitting ? 'Salvando...' : (editingStudent ? 'Salvar Alterações' : (
                                                 <>
                                                     <Plus className="h-4 w-4 mr-1" />
                                                     Adicionar Aluno
                                                 </>
-                                            )}
+                                            ))}
                                         </button>
                                     </div>
                                 </form>
@@ -440,13 +477,28 @@ export default function Dashboard() {
                                 >
                                     <Printer className="h-5 w-5" />
                                 </button>
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            const testRef = await addDoc(collection(db, "test_connection"), {
+                                                timestamp: new Date(),
+                                                user: currentUser?.email || 'anonymous'
+                                            });
+                                            alert(`Conexão com Banco de Dados: OK!\nDocumento criado com ID: ${testRef.id}`);
+                                        } catch (error) {
+                                            console.error("Erro de conexão:", error);
+                                            alert(`ERRO no Banco de Dados:\n${error.message}\n\nVerifique se suas regras do Firestore permitem gravação.`);
+                                        }
+                                    }}
+                                    className="inline-flex justify-center items-center px-4 py-2 border border-red-300 dark:border-red-600 text-sm font-medium rounded-lg shadow-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 hover:bg-red-100"
+                                    title="Testar Conexão com Banco de Dados"
+                                >
+                                    Testar Banco
+                                </button>
                             </>
                         )}
                     </div>
                 </div>
-
-                {/* Attendance Mode UI */}
-
 
                 {/* Students Grid */}
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
