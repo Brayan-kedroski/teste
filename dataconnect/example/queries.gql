@@ -1,0 +1,32 @@
+mutation CreateUser @auth(level: USER) {
+  user_insert(data: {
+    username: "newuser",
+    email: "newuser@example.com",
+    createdAt_expr: "request.time"
+  })
+}
+
+query GetStoriesByUser($userId: UUID!) @auth(level: USER) {
+  stories(where: {userId: {eq: $userId}}) {
+    id
+    caption
+    videoUrl
+  }
+}
+
+mutation AddReaction($storyId: UUID!, $emoji: String!) @auth(level: USER) {
+  reaction_insert(data: {
+    storyId: $storyId,
+    userId_expr: "auth.uid",
+    emoji: $emoji,
+    createdAt_expr: "request.time"
+  })
+}
+
+query ListAllUsers @auth(level: PUBLIC, insecureReason: "This operation is safe to expose to the public") {
+  users {
+    id
+    username
+    profilePictureUrl
+  }
+}

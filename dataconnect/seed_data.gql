@@ -1,0 +1,63 @@
+mutation SeedDatabase @transaction @auth(level: USER, insecureReason: "This operation is for seeding the database with initial data and is safe for all logged-in users.") {
+  user_insertMany(data: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      username: "demouser1",
+      email: "demouser1@example.com",
+      createdAt: "2024-04-26T12:00:00Z"
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      username: "demouser2",
+      email: "demouser2@example.com",
+      createdAt: "2024-04-26T13:00:00Z"
+    }
+  ])
+  story_insertMany(data: [
+    {
+      id: "650e8400-e29b-41d4-a716-446655440000",
+      userId: "550e8400-e29b-41d4-a716-446655440000",
+      videoUrl: "http://example.com/video1.mp4",
+      createdAt: "2024-04-26T14:00:00Z",
+      expiresAt: "2024-04-27T14:00:00Z"
+    },
+    {
+      id: "650e8400-e29b-41d4-a716-446655440001",
+      userId: "550e8400-e29b-41d4-a716-446655440001",
+      videoUrl: "http://example.com/video2.mp4",
+      createdAt: "2024-04-26T15:00:00Z",
+      expiresAt: "2024-04-27T15:00:00Z"
+    }
+  ])
+  message_insertMany(data: [
+    {
+      id: "750e8400-e29b-41d4-a716-446655440000",
+      senderId: "550e8400-e29b-41d4-a716-446655440000",
+      receiverId: "550e8400-e29b-41d4-a716-446655440001",
+      content: "Hello from demouser1 to demouser2",
+      createdAt: "2024-04-26T16:00:00Z"
+    },
+    {
+      id: "750e8400-e29b-41d4-a716-446655440001",
+      senderId: "550e8400-e29b-41d4-a716-446655440001",
+      receiverId: "550e8400-e29b-41d4-a716-446655440000",
+      content: "Reply from demouser2 to demouser1",
+      createdAt: "2024-04-26T17:00:00Z"
+    }
+  ])
+  follow_insertMany(data: [
+    {
+      followerId: "550e8400-e29b-41d4-a716-446655440000",
+      followedId: "550e8400-e29b-41d4-a716-446655440001",
+      createdAt: "2024-04-26T18:00:00Z"
+    }
+  ])
+  reaction_insertMany(data: [
+    {
+      userId: "550e8400-e29b-41d4-a716-446655440000",
+      storyId: "650e8400-e29b-41d4-a716-446655440000",
+      emoji: "👍",
+      createdAt: "2024-04-26T19:00:00Z"
+    }
+  ])
+}
